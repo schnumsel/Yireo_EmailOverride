@@ -148,7 +148,7 @@ class Yireo_EmailOverride_Helper_Data extends Mage_Core_Helper_Abstract
 
             $package->setArea('frontend');
             $packageName = $package->getPackageName();
-            $theme = $package->getTheme('default');
+            $theme = $package->getTheme('template');
 
             $package->setArea($originalArea);
             $package->setStore($originalStore);
