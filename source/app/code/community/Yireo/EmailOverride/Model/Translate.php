@@ -13,6 +13,52 @@
  */
 class Yireo_EmailOverride_Model_Translate extends Mage_Core_Model_Translate
 {
+
+    /**
+     * Initialization translation data
+     *
+     * @param   string $area
+     * @return  Mage_Core_Model_Translate
+     */
+    public function init($config, $forceReload = false)
+    {
+        if(is_array($config)) {
+            $this->setConfig($config);
+        }
+        else {
+            $this->setConfig(array(self::CONFIG_KEY_AREA=>$config));
+        }
+        $area = $this->getConfig(self::CONFIG_KEY_AREA);
+
+        $this->_translateInline = Mage::getSingleton('core/translate_inline')
+            ->isAllowed($area=='adminhtml' ? 'admin' : null);
+
+        if (!$forceReload) {
+            if ($this->_canUseCache()) {
+                $this->_data = $this->_loadCache();
+                if ($this->_data !== false) {
+                    return $this;
+                }
+            }
+            Mage::app()->removeCache($this->getCacheId());
+        }
+
+        $this->_data = array();
+
+        foreach ($this->getModulesConfig() as $moduleName=>$info) {
+            $info = $info->asArray();
+            $this->_loadModuleTranslation($moduleName, $info['files'], $forceReload);
+        }
+
+        $this->_loadThemeTranslation($forceReload);
+        $this->_loadDbTranslation($forceReload);
+
+        if (!$forceReload && $this->_canUseCache()) {
+            $this->_saveCache();
+        }
+
+        return $this;
+    }
     /**
      * Retrieve translation file for module
      *
@@ -133,19 +179,33 @@ class Yireo_EmailOverride_Model_Translate extends Mage_Core_Model_Translate
     protected function _loadThemeTranslation($forceReload = false)
     {
         // Check for fallback support
-        if ($this->getModuleHelper()->supportsDesignFallback() == false) {
+        if (true || $this->getModuleHelper()->supportsDesignFallback() == false) {
             return parent::_loadThemeTranslation($forceReload);
         }
 
         /** @var Mage_Core_Model_Design_Fallback $fallbackModel */
         $fallbackModel = Mage::getModel('core/design_fallback');
 
-        /** @var Mage_Core_Model_Design_Package $designPackage */
-        $designPackage = Mage::getSingleton('core/design_package');
+        $store = Mage::app()->getStore($this->getConfig(self::CONFIG_KEY_STORE));
 
-        // First add fallback package translate.csv files
-        $fallbacks = $fallbackModel->getFallbackScheme($designPackage->getArea(), $designPackage->getPackageName(), $designPackage->getTheme('layout'));
+        if($this->getConfig(self::CONFIG_KEY_AREA) == 'adminhtml') {
 
+            /** @var Mage_Core_Model_Design_Package $designPackage */
+            $designPackage = Mage::getSingleton('core/design_package');
+
+            // First add fallback package translate.csv files
+            $fallbacks = $fallbackModel->getFallbackScheme(
+                $designPackage->getArea(),
+                $designPackage->getPackageName(),
+                $designPackage->getTheme('layout'));
+
+        }
+        else {
+            $fallbacks = $fallbackModel->getFallbackScheme(
+                $this->getConfig(self::CONFIG_KEY_AREA),
+                $this->getConfig(self::CONFIG_KEY_DESIGN_PACKAGE),
+                $this->getConfig(self::CONFIG_KEY_DESIGN_THEME));
+        }
         foreach ($fallbacks as $fallback) {
             if (!isset($fallback['_package']) || !isset($fallback['_theme'])) {
                 continue;
